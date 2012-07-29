@@ -15,17 +15,20 @@ module.exports = {
     },
     
     "Test case fixtures should all result in expected URLs": function (test) {
+        var base_url = 'http://example.com/blog/post.html';
+
         var try_fixture = function (err, data, fn, fe_next) {
             if (err) { throw err; }
             var parts = (''+data).split('---');
             var expected_url = parts.shift().trim();
             var expected_kind = parts.shift().trim();
             var body = parts.shift().trim();
-            ThumbExtractor.find(body, function (err, result_url, result_kind) {
+            var cb = function (err, result_url, result_kind) {
                 test.equal(result_url, expected_url);
                 test.equal(result_kind, expected_kind);
                 fe_next();
-            });
+            };
+            ThumbExtractor.find(base_url, body, cb);
         };
 
         fs.readdir(__dirname + '/fixtures', function (err, files) {
