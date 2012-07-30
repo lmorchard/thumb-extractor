@@ -35,16 +35,27 @@ module.exports = {
                     request(site_url, wf_next);
                 },
                 function (req, body, wf_next) {
+                    // TODO: Improvements - this is a sad substitute for
+                    // http://www.aaronsw.com/2002/feedfinder/
                     var $ = cheerio.load(body);
-                    var feed_url = $('link[rel="alternate"]' +
-                                     '[type="application/rss+xml"]').attr('href');
-                    if (feed_url) {
-                        feed_url = feed_url.replace('feed://', 'http://');
-                        feed_url = url.resolve(site_url, feed_url);
-                        request(feed_url, wf_next);
-                    } else {
-                        fe_next();
+                    var formats = [
+                        'application/rss+xml',
+                        'text/xml',
+                        'application/atom+xml',
+                        'application/x.atom+xml',
+                        'application/x-atom+xml'
+                    ];
+                    for (var i=0,format; format=formats[i]; i++) {
+                        var feed_url = $('link[rel="alternate"]' +
+                                         '[type="'+format+'"]').attr('href');
+                        if (feed_url) {
+                            feed_url = feed_url.replace('feed://', 'http://');
+                            feed_url = url.resolve(site_url, feed_url);
+                            return request(feed_url, wf_next);
+                        }
                     }
+                    util.debug("NO FEED URL FOR " + site_url);
+                    fe_next();
                 },
                 function (req, body, wf_next) {
                     var handler = new htmlparser.FeedHandler(function (err, feed) {
