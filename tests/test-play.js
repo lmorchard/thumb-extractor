@@ -31,9 +31,11 @@ module.exports = {
         ];
         async.forEach(site_urls, function (site_url, fe_next) {
             async.waterfall([
+                // 1. Grab the source to the page.
                 function (wf_next) {
                     request(site_url, wf_next);
                 },
+                // 2. Try some autodiscovery and fetch the feed.
                 function (req, body, wf_next) {
                     // TODO: Improvements - this is a sad substitute for
                     // http://www.aaronsw.com/2002/feedfinder/
@@ -57,6 +59,7 @@ module.exports = {
                     util.debug("NO FEED URL FOR " + site_url);
                     fe_next();
                 },
+                // 3. Parse the fetched feed, try finding thumbs for items.
                 function (req, body, wf_next) {
                     var handler = new htmlparser.FeedHandler(function (err, feed) {
                         var items = feed.items.slice(0,10);
