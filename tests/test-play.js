@@ -1,7 +1,12 @@
+// # Thumb Extractor tests
 var fs = require('fs');
+var url = require('url');
 var util = require('util');
+var _ = require('underscore');
 var async = require('async');
 var request = require('request');
+var cheerio = require('cheerio');
+var htmlparser = require('htmlparser2');
 var ThumbExtractor = require('..');
 
 module.exports = {
@@ -12,6 +17,73 @@ module.exports = {
 
     tearDown: function (next) {
         next();
+    },
+
+    "Play area": function (test) {
+
+        var site_urls = [
+            "http://www.theverge.com/",
+            "http://www.joystiq.com/",
+            "http://io9.com/",
+            "http://questionablecontent.net",
+            "http://boingboing.net",
+            "http://blog.makezine.com"
+        ];
+        async.forEach(site_urls, function (site_url, fe_next) {
+            async.waterfall([
+                function (wf_next) {
+                    request(site_url, wf_next);
+                },
+                function (req, body, wf_next) {
+                    var $ = cheerio.load(body);
+                    var feed_url = $('link[rel="alternate"]' +
+                                     '[type="application/rss+xml"]').attr('href');
+                    if (feed_url) {
+                        feed_url = feed_url.replace('feed://', 'http://');
+                        feed_url = url.resolve(site_url, feed_url);
+                        request(feed_url, wf_next);
+                    } else {
+                        fe_next();
+                    }
+                },
+                function (req, body, wf_next) {
+                    var handler = new htmlparser.FeedHandler(function (err, feed) {
+                        var items = feed.items.slice(0,10);
+                        async.forEach(items, function (item, fe_next) {
+                            var req_opts = { url: item.link };
+                            request(req_opts, function (err, req, body) {
+                                ThumbExtractor.find(site_url, body, function (err, thumb_url, kind) {
+                                    item.thumb_link = thumb_url;
+                                    fe_next();
+                                });
+                            });
+                        }, function (err) {
+                            feed.url = site_url;
+                            wf_next(null, feed);
+                        });
+                    });
+                    var parser = new htmlparser.Parser(handler, {
+                        xmlMode: true
+                    });
+                    parser.parseComplete(body);
+                }
+            ], function (err, feed) {
+                util.debug("----------------------------------------------------------------------");
+                util.debug("SITE: " + feed.title + " (" + feed.url +")");
+                util.debug("----------------------------------------------------------------------");
+                var items = feed.items.slice(0,10);
+                for (var i=0,item; item=items[i]; i++) {
+                    util.debug("* " + item.title);
+                    util.debug("\t\t" + item.link);
+                    util.debug("\t\t" + item.thumb_link);
+                }
+                util.debug("======================================================================");
+                fe_next();
+            });
+        }, function (err) {
+            test.done();
+        });
+
     },
     
     "Test case fixtures should all result in expected URLs": function (test) {
